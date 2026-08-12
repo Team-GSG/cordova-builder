@@ -1,0 +1,79 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Install Cordova
+        run: npm install -g cordova@13
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate config.json from Secrets
+        run: |
+          node -e "
+          const fs = require('fs');
+          const clean = (v) => (v || '').trim();
+          const config = {
+            appName:     clean(process.env.APP_NAME),
+            packageId:   clean(process.env.PACKAGE_ID),
+            targetUrl:   clean(process.env.TARGET_URL),
+            versionName: clean(process.env.VERSION_NAME),
+            versionCode: parseInt(clean(process.env.VERSION_CODE), 10),
+            orientation: clean(process.env.ORIENTATION) || 'default',
+            icon:        './res/icon.png'
+          };
+          fs.writeFileSync('config.json', JSON.stringify(config, null, 2));
+          console.log('config.json generated successfully');
+          console.log('appName:', config.appName);
+          console.log('packageId:', config.packageId);
+          console.log('targetUrl:', config.targetUrl);
+          console.log('orientation:', config.orientation);
+          "
+        env:
+          APP_NAME:     ${{ secrets.APP_NAME }}
+          PACKAGE_ID:   ${{ secrets.PACKAGE_ID }}
+          TARGET_URL:   ${{ secrets.TARGET_URL }}
+          VERSION_NAME: ${{ secrets.VERSION_NAME }}
+          VERSION_CODE: ${{ secrets.VERSION_CODE }}
+          ORIENTATION:  ${{ secrets.ORIENTATION }}
+
+      - name: Verify config.json
+        run: cat config.json
+
+      - name: Build APK
+        run: node build.js
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ secrets.APP_NAME }}-v${{ secrets.VERSION_NAME }}-APK
+          path: dist/*.apk
+          retention-days: 7
