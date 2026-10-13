@@ -133,6 +133,15 @@ configXml = configXml.replace(
   `<content src="${targetUrl}" />`
 );
 
+// Add Android XML namespace to <widget> (required by the <edit-config> that
+// enables cleartext HTTP below; without it Cordova cannot parse android:* attrs)
+if (!/xmlns:android=/.test(configXml)) {
+  configXml = configXml.replace(
+    /<widget\b/,
+    '<widget xmlns:android="http://schemas.android.com/apk/res/android"'
+  );
+}
+
 // Remove default allow-intent tags (we replace with full config below)
 configXml = configXml.replace(/<allow-intent[^\/]*\/>\s*/g, '');
 
@@ -164,6 +173,12 @@ const androidBlock = `
         <preference name="MediaPlaybackRequiresUserAction" value="false" />
         <preference name="DisallowOverscroll"        value="true" />
         <preference name="LoadUrlTimeoutValue"       value="30000" />
+
+        <!-- Allow cleartext (http://) traffic. Android 9+ blocks it by default,
+             causing net::ERR_CLEARTEXT_NOT_PERMITTED when the site redirects to http. -->
+        <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
+            <application android:usesCleartextTraffic="true" />
+        </edit-config>
 
         <!-- Screen orientation (from ORIENTATION secret; "default" = unlocked/sensor). -->
         <preference name="Orientation"               value="${orientationValue}" />
